@@ -7,7 +7,7 @@ You'll need an .env file with the key "switch_url" e.g. ```switch_url=192.168.1.
 
 To install and run the debug build with the following
 
-0. Setup venv if you want with ```$ python -m venv venv```
+0. Setup venv if you want with ```$ python -m venv venv``` and soruce it with ```$ source venv/bin/activate```
 1. Install dependencies ```$ pip install -r requirements.txt```
 2. Run with ```$ python main.py```
 
