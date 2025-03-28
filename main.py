@@ -8,6 +8,9 @@ app = Flask(__name__)
 
 load_dotenv()
 
+@app.route('/')
+def index():
+    return {"machine_status": machine_status.get_status()}
 
 @app.route('/turn_machine_on', methods=['POST'])
 def turn_machine_on():
