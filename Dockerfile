@@ -12,4 +12,6 @@ COPY ./machine.py /app/
 
 COPY ./.env /app/
 
+COPY ./frontend/ /app/frontend
+
 CMD ["python", "-u", "main.py"]

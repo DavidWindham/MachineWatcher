@@ -1,16 +1,33 @@
-from flask import Flask
+from flask import Flask, send_from_directory, request, redirect
 from machine import MachineStatus
 from dotenv import load_dotenv
 import os
 
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='./frontend/dist', static_url_path='')
 
 load_dotenv()
 
+@app.before_request
+def rewrite_api_prefix():
+    if request.path.startswith('/api/'):
+        new_path = request.path.replace('/api', '', 1)
+        # Manually dispatch the rewritten request
+        try:
+            # Important: use current_app.full_dispatch_request() on a new request context
+            from flask import current_app
+            with current_app.request_context({
+                **request.environ,
+                'PATH_INFO': new_path
+            }):
+                return current_app.full_dispatch_request()
+        except HTTPException as e:
+            return e
+    
 @app.route('/')
 def index():
-    return {"machine_status": machine_status.get_status()}
+    # return {"machine_status": machine_status.get_status()}
+    return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/turn_machine_on', methods=['POST'])
 def turn_machine_on():
