@@ -70,6 +70,11 @@ class MachineStatus:
         
         # Let the status check handle setting machine_on = False
         # and adjusting the monitoring
+        self.machine_on = False
+        self.machine_turned_on_at = None
+        if self.is_async_thread_alive():
+            self.async_machine_caller_thread.terminate()
+        self.machine_readings = self.manager.list()
         self.check_machine_status()
         return "Machine turned off"
 
@@ -128,9 +133,10 @@ class MachineStatus:
     
     def get_status(self):
         time_since_turned_on = None
-        if self.machine_turned_on_at is not None:
+        if self.machine_turned_on_at is None:
+            self.machine_turned_on_at = time.time() - time.time()
+        else:
             time_since_turned_on = time.time() - self.machine_turned_on_at
-            
         return {
             "machine_on": self.machine_on,
             "machine_turned_on_at": self.machine_turned_on_at,
