@@ -13,6 +13,23 @@ class MachineDataPoint:
         return f"Machine Status: {self.id}, {self.source}, {self.output}, {self.apower}, {self.voltage}, {self.current}, {self.aenergy}, {self.temperature}"
     
 
+class CommandEntry:
+    def __init__(self, command_type, timestamp=None):
+        self.command_type = command_type  # "on" or "off"
+        self.timestamp = timestamp if timestamp is not None else time.time()
+    
+    def __repr__(self) -> str:
+        time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.timestamp))
+        return f"Command: {self.command_type} at {time_str}"
+
+    def to_dict(self):
+        """Convert the command entry to a serializable dictionary"""
+        return {
+            "command_type": self.command_type,
+            "timestamp": self.timestamp,
+            "formatted_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.timestamp))
+        }
+
 class MachineStatus:
     def __init__(self, base_url):
         self.base_url = base_url
@@ -20,8 +37,10 @@ class MachineStatus:
         self.machine_on = False
         self.manager = Manager()
         self.machine_readings = self.manager.list()
+        self.command_history = self.manager.list()  # New: track command history
         self.max_readings = 3600
         self.machine_turned_on_at = None
+        self.last_turned_on_at = None  # New: to keep track of last time machine was on
 
         # Ping intervals in seconds
         self.ON_PING_INTERVAL = 1
@@ -53,10 +72,20 @@ class MachineStatus:
         self.async_machine_caller_thread.terminate()
         self.async_machine_caller_thread = None
 
+    def record_command(self, command_type):
+        """Record a command in the history"""
+        command = CommandEntry(command_type)
+        if len(self.command_history) >= self.max_readings:
+            self.command_history.pop(0)
+        self.command_history.append(command)
+
     def turn_machine_on(self):
         call = requests.post(f"{self.base_url}/rpc/Switch.Set", json={"id": 0, "on": True})
         if call.status_code != 200:
             return "Error turning machine on"
+        
+        # Record this command in history
+        self.record_command("on")
         
         # Let the status check handle setting machine_on = True
         # and starting the appropriate monitoring
@@ -68,10 +97,17 @@ class MachineStatus:
         if call.status_code != 200:
             return "Error turning machine off"
         
-        # Let the status check handle setting machine_on = False
-        # and adjusting the monitoring
+        # Record this command in history
+        self.record_command("off")
+        
+        # Save last turned on time before clearing it
+        if self.machine_turned_on_at is not None:
+            self.last_turned_on_at = self.machine_turned_on_at
+        
+        # Update state but preserve historical data
         self.machine_on = False
-        self.machine_turned_on_at = None
+        self.machine_turned_on_at = None  # We clear this but keep last_turned_on_at
+        
         if self.is_async_thread_alive():
             self.async_machine_caller_thread.terminate()
         self.machine_readings = self.manager.list()
@@ -111,7 +147,11 @@ class MachineStatus:
             # Record when machine was turned on
             if current_state:
                 self.machine_turned_on_at = time.time()
+                self.last_turned_on_at = self.machine_turned_on_at
             else:
+                # When turning off, we keep last_turned_on_at but clear machine_turned_on_at
+                if self.machine_turned_on_at is not None:
+                    self.last_turned_on_at = self.machine_turned_on_at
                 self.machine_turned_on_at = None
             
             # Restart the monitoring thread with appropriate interval
@@ -131,15 +171,21 @@ class MachineStatus:
     def get_readings(self):
         return self.machine_readings
     
+    def get_command_history(self):
+        """Get the history of commands executed on the machine"""
+        return [command.to_dict() for command in list(self.command_history)]
+    
     def get_status(self):
         time_since_turned_on = None
-        if self.machine_turned_on_at is None:
-            self.machine_turned_on_at = time.time() - time.time()
-        else:
+        
+        # Calculate time since machine was turned on if it's currently on
+        if self.machine_on and self.machine_turned_on_at is not None:
             time_since_turned_on = time.time() - self.machine_turned_on_at
+        
         return {
             "machine_on": self.machine_on,
             "machine_turned_on_at": self.machine_turned_on_at,
+            "last_turned_on_at": self.last_turned_on_at,
             "time_since_turned_on": time_since_turned_on
         }
     

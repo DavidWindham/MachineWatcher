@@ -46,7 +46,8 @@ def get_machine_status():
 
     return {
         "status": machine_status.get_status(),
-        "readings": readings_json
+        "readings": readings_json,
+        "history": machine_status.get_command_history()
     }
 
 if __name__ == '__main__':
