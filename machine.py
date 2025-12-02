@@ -87,6 +87,9 @@ class MachineStatus:
         # Record this command in history
         self.record_command("on")
         
+        # Clear previous readings when turning on
+        self.machine_readings = self.manager.list()
+        
         # Let the status check handle setting machine_on = True
         # and starting the appropriate monitoring
         self.check_machine_status()
